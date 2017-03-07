@@ -1,0 +1,351 @@
+% t_readme.m
+%
+%                    Tidal Analysis Toolbox
+%                              by        
+%               R. Pawlowicz, R. Beardsley, S. Lentz
+%
+%                 Version 1.2b   December 1, 2003
+%
+% The tidal analysis toolbox uses harmonic analysis to estimate 
+% tidal consitutents and their uncertainities in scalar and vector 
+% time series. 
+%
+% A description of the theoretical basis of the toolbox and some
+% implementation details can be found in:
+%
+% Pawlowicz, R., B. Beardsley, and S. Lentz, "Classical Tidal 
+%   "Harmonic Analysis Including Error Estimates in MATLAB 
+%    using T_TIDE", Computers and Geosciences, 28 (2002), 929-937.
+%
+% (citation of this article would be appreciated if you find the
+%  toolbox useful).
+%
+% A demonstration program is included which tests many of the 
+% capabilities of this toolbox. To run the demonstration, type 't_demo'.
+%
+% This toolbox may call functions PSD and/or CSD in the Signal 
+% Processing Toolbox (see note below).
+%
+% ---------------------------------------------------------------------
+% This package began as an attempt to translate a FORTRAN package 
+% developed by M. G. G. Foreman and coworkers at the Institute of Ocean 
+% Sciences (IOS). (The IOS tidal package and user manuals are available 
+% from Foreman at http://www.pac.dfo-mpo.gc.ca/sci/osap/projects/tidpack/tidpack_e.htm)
+% S. Lentz and R. Beardsley (WHOI) began translating the code into 
+% MATLAB, and wrote a linear error estimation algorithm using MATLAB 
+% spectrum code.  R. Pawlowicz (UBC) then completely rewrote it all, 
+% using complex (rather than real) math, adding inference, a user 
+% interface, and lots of other goodies, including an nonlinear error 
+% analysis. If you want to make use of the error analysis, it is 
+% strongly recommended that you read T_ERRORS.
+%
+% Caveats: - Presently the nodal corrections are done in such a way 
+% that they may not be too accurate for time series longer than a year
+% or so (corrections are based on the middle time of the input series). 
+% The hand-me-down advice for this case is "break up your series into 
+% yearly chunks and do successive analyses", unless you have 19 years 
+% or more data, in which case nodal corrections aren't necessary, but 
+% in THAT case, you should rewrite the code so that all constituents 
+% are analyzed without the need for nodal corrections.
+%
+% Tidal predictions are also based on nodal corrections at the center 
+% time (the center of the time series being analyzed).
+%
+% Shallow water constituents are not used automatically. They can
+% be used but you must specify them manually using 'shallow' input 
+% option to T_TIDE.  You can get the names and frequencies of 
+% shallow water constituents from the CONST structure returned by 
+% T_GETCONSTS):
+%
+%   CONST=t_getconsts;
+%   CONST.name(finite(CONST.ishallow))
+% 
+% Note that T_TIDE has options for pretty much anything you could 
+% possibly want to do -  type 'help t_tide' for more info (also look 
+% at the example in t_demo).
+%
+%----------------------------------------------------------------------
+%
+% PSD and CSD: Currently the functions psd.m and csd.m from the SIGNAL 
+% PROCESSING toolbox are called when the default confidence interval 
+% calculation is used. If you don't have these functions, you can still
+% do things by specifying another algorithm, e.g.,
+%
+%    [...]=t_tide(...'error','wboot')
+%
+%----------------------------------------------------------------------
+%
+% The toolbox presently contains the following mfiles:
+%
+% ---FOR ANALYSIS
+% t_tide.m       - computes the tidal analysis of the real or complex 
+%                  time series.
+%
+% t_predic.m     - computes a tidal prediction using the results of 
+%                  t_tide.
+%
+% t_vuf.m        - computes nodal corrections. 
+% 
+% t_astron.m     - computes astronomical arguments.
+%
+% t_getconsts.m  - loads constituent data of all kinds (based on the 
+%                  data file from the fortran package).
+%
+% t_xtide.m      - worldwide tidal predictions using the constituent data
+%                  from the XTIDE package.
+%
+% ---FOR DOCUMENTATION
+%
+% t_readme.m     - this file.
+%
+% t_errors.m     - a long discussion of confidence intervals and how 
+%                  they can be generated.
+%
+% ---FOR DEMONSTRATION
+%
+% t_synth.m      - synthesizes noisy data to test real as opposed to
+%                  estimated uncertainties (crufty code).
+%
+% t_demo.m       - a short example using the Tuktoyuktok elevation data.
+% 
+% ---FOR FUN
+%
+% t_equilib.m    - computes the equilibrium amplitudes of main
+%                  constituents at a given latitude.
+%
+%
+% Various data files are also included:
+%
+% tide3.dat      - standard constituent data file from the IOS analysis
+%                  package. (read once and then results stored in 
+%                  various data structures in t_constituents.mat)
+%
+% t_equilib.dat  - equilibrium amplitude A and B factors. (read once 
+%                  and results then stored in t_constituents.mat)
+%
+% t_constituents.mat - constituent data structures.
+%
+% t_example.mat  - sample Tuktoyuktuk elevation data set used as an 
+%                  example in PMSR-77/10 (check example from IOS tide
+%                  package).
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% T_DEMO - demonstration of capabilities.
+% Short example of capabilities of tidal analysis toolbox.
+%
+% In this example, we 
+%         a) do nodal corrections for satellites, 
+%         b) use inference for P1 and K2, and
+%         c) force a fit to a shallow-water constituent.
+
+% Version 1.0
+
+echo on
+       echo on
+       % Load the example.
+       load t_example
+      
+       % Define inference parameters.
+       infername=['P1';'K2'];
+       inferfrom=['K1';'S2'];
+       infamp=[.33093;.27215];
+       infphase=[-7.07;-22.40];
+       
+       % The call (see t_demo code for details).
+       [tidestruc,pout]=t_tide(tuk_elev,...
+       'interval',1, ...                     % hourly data
+       'start',tuk_time(1),...               % start time is datestr(tuk_time(1))
+       'latitude',69+27/60,...               % Latitude of obs
+       'inference',infername,inferfrom,infamp,infphase,...
+       'shallow','M10',...                   % Add a shallow-water constituent 
+       'error','cboot',...                   % coloured boostrap CI
+       'synthesis',1);                       % Use SNR=1 for synthesis. 
+
+
+       echo off
+
+    %    pout=t_predic(tuk_time,tidestruc,,...
+    %                  'latitude',69+27/60,...
+    %                  'synthesis',1);
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% T_TIDE Harmonic analysis of a time series
+% [NAME,FREQ,TIDECON,XOUT]=T_TIDE(XIN) computes the tidal analysis 
+% of the (possibly complex) time series XIN.
+%
+% [TIDESTRUC,XOUT]=T_TIDE(XIN) returns the analysis information in
+% a structure formed of NAME, FREQ, and TIDECON.
+%
+% XIN can be scalar (e.g. for elevations), or complex ( =U+sqrt(-1)*V
+% for eastward velocity U and northward velocity V.
+%
+% Further inputs are optional, and are specified as property/value pairs
+% [...]=T_TIDE(XIN,property,value,property,value,...,etc.)
+%      
+% These properties are:
+%
+%       'interval'       Sampling interval (hours), default = 1. 
+%          
+%   The next two are required if nodal corrections are to be computed,
+%   otherwise not necessary. If they are not included then the reported
+%   phases are raw constituent phases at the central time. 
+%
+%   If your time series is longer than 18.6 years then nodal corrections
+%   are not made -instead we fit directly to all satellites (start time
+%   is then just used to generate Greenwich phases).
+%
+%       'start time'     [year,month,day,hour,min,sec]
+%                        - min,sec are optional OR 
+%                        decimal day (matlab DATENUM scalar)
+%       'latitude'       decimal degrees (+north) (default: none).
+%
+%   Where to send the output.
+%       'output'         where to send printed output:
+%                        'none'    (no printed output)
+%                        'screen'  (to screen) - default
+%                        FILENAME   (to a file)
+%
+%   Correction factor for prefiltering.
+%       'prefilt'        FS,CORR
+%                        If the time series has been passed through
+%                        a pre-filter of some kind (say, to reduce the
+%                        low-frequency variability), then the analyzed
+%                        constituents will have to be corrected for 
+%                        this. The correction transfer function 
+%                        (1/filter transfer function) has (possibly 
+%                        complex) magnitude CORR at frequency FS (cph). 
+%                        Corrections of more than a factor of 100 are 
+%                        not applied; it is assumed these refer to tidal
+%                        constituents that were intentionally filtered 
+%                        out, e.g., the fortnightly components.
+%
+%   Adjustment for long-term behavior ("secular" behavior).
+%       'secular'        'mean'   - assume constant offset (default).
+%                        'linear' - get linear trend.
+%                     
+%   Inference of constituents.
+%       'inference'      NAME,REFERENCE,AMPRAT,PHASE_OFFSET
+%                        where NAME is an array of the names of 
+%                        constituents to be inferred, REFERENCE is an 
+%                        array of the names of references, and AMPRAT 
+%                        and PHASE_OFFSET are the amplitude factor and
+%                        phase offset (in degrees)from the references. 
+%                        NAME and REFERENCE are Nx4 (max 4 characters
+%                        in name), and AMPRAT and PHASE_OFFSET are Nx1
+%                        (for scalar time series) and Nx2 for vector 
+%                        time series (column 1 is for + frequencies and
+%                        column 2 for - frequencies).
+%
+%   Shallow water constituents
+%       'shallow'        NAME
+%                        A matrix whose rows contain the names of 
+%                        shallow-water constituents to analyze.
+%
+%   Resolution criterions for least-squares fit.        
+%       'rayleigh'       scalar - Rayleigh criteria, default = 1.
+%                        Matrix of strings - names of constituents to
+%                                   use (useful for testing purposes).
+%  
+%   Calculation of confidence limits.
+%       'error'          'wboot'  - Boostrapped confidence intervals 
+%                                   based on a correlated bivariate 
+%                                   white-noise model.
+%                        'cboot'  - Boostrapped confidence intervals 
+%                                   based on an uncorrelated bivariate 
+%                                   coloured-noise model (default).
+%                        'linear' - Linearized error analysis that 
+%                                   assumes an uncorrelated bivariate 
+%                                   coloured noise model. 
+%                                   
+%   Computation of "predicted" tide (passed to t_predic, but note that
+%                                    the default value is different).
+%       'synthesis'      0 - use all selected constituents
+%                        scalar>0 - use only those constituents with a 
+%                                   SNR greater than that given (1 or 2 
+%                                   are good choices, 2 is the default).
+%                              <0 - return result of least-squares fit 
+%                                   (should be the same as using '0', 
+%                                   except that NaN-holes in original 
+%                                   time series will remain and mean/trend
+%                                   are included).
+%
+%   Least squares soln computational efficiency parameter
+%	'lsq'		'direct'  - use A\x fit
+%			'normal'  - use (A'A)\(A'x) (may be necessary
+%				    for very large input vectors since
+%                                   A'A is much smaller than A)
+%			'best'	  - automatically choose based on
+%				    length of series (default).
+%
+%       It is possible to call t_tide without using property names,
+%       in which case the assumed calling sequence is
+%
+%          T_TIDE(XIN,INTERVAL,START_TIME,LATITUDE,RAYLEIGH)
+%
+%
+%  OUTPUT: 
+%
+%    nameu=list of constituents used
+%    fu=frequency of tidal constituents (cycles/hr)
+%    tidecon=[fmaj,emaj,fmin,emin,finc,einc,pha,epha] for vector xin
+%           =[fmaj,emaj,pha,epha] for scalar (real) xin
+%       fmaj,fmin - constituent major and minor axes (same units as xin)       
+%       emaj,emin - 95% confidence intervals for fmaj,fmin
+%       finc - ellipse orientations (degrees)
+%       einc - 95% confidence intervals for finc
+%       pha - constituent phases (degrees relative to Greenwich)
+%       epha - 95% confidence intervals for pha
+%    xout=tidal prediction
+%
+% Note: Although missing data can be handled with NaN, it is wise not
+%       to have too many of them. If your time series has a lot of 
+%       missing data at the beginning and/or end, then truncate the 
+%       input time series.  The Rayleigh criterion is applied to 
+%       frequency intervals calculated as the inverse of the input 
+%       series length.
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+function yout=t_predic(tim,varargin);
+% T_PREDIC Tidal prediction
+% YOUT=T_PREDIC(TIM,NAMES,FREQ,TIDECON) makes a tidal prediction
+% using the output of T_TIDE at the specified times TIM in decimal 
+% days (from DATENUM). Optional arguments can be specified using
+% property/value pairs: 
+%
+%       YOUT=T_PREDIC(...,TIDECON,property,value,...)
+%
+% Available properties are:
+%
+%    In the simplest case, the tidal analysis was done without nodal
+%    corrections, and thus neither will the prediction. If nodal 
+%    corrections were used in the analysis, then it is likely we will
+%    want to use them in the prediction too and these are computed 
+%    using the latitude, if given.
+%
+%     'latitude'        decimal degrees (+north) (default: none)
+%
+%    If the original analysis was >18.6 years satellites are
+%    not included and we force that here:
+%
+%     'anallength'      'nodal' (default)
+%                       'full'  For >18.6 years.
+%
+%    The tidal prediction may be restricted to only some of the 
+%    available constituents:
+%
+%     'synthesis'    0 - Use all selected constituents.  (default)
+%                    scalar>0 - Use only those constituents with a SNR
+%                               greater than that given (1 or 2 are
+%                               good choices).
+%
+%
+%  It is possible to call t_predic without using property names, in
+%  which case the assumed calling sequence is
+%
+%    YOUT=T_PREDIC(TIM,NAMES,FREQ,TIDECON,LATITUDE,SYNTHESIS);
+%
+%  T_PREDIC can be called using the tidal structure available as an 
+%  optional output from T_TIDE
+%
+%    YOUT=T_PREDIC(TIM,TIDESTRUC,...)
+%
+%  This is in fact the recommended calling procedure (and required
+%  when the analysis results are from series>18.6 years in length)
+
